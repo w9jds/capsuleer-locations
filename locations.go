@@ -42,6 +42,11 @@ func processCharacter(job *Job) {
 	character := characters[job.ID]
 	mutex.Unlock()
 
+	if !isAuthenticated(job.ID, character.SSO) {
+		jobQueue <- NewJob(job.ID, 60*time.Second)
+		return
+	}
+
 	if !hasLocationScopes(character.SSO) {
 		jobQueue <- NewJob(job.ID, 60*time.Second)
 		return
@@ -89,6 +94,34 @@ func isCharacterOnline(character Character) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func isAuthenticated(id string, permissions *Permissions) bool {
+	if permissions == nil || permissions.AccessToken == "" {
+		return false
+	}
+
+	now := time.Now()
+	expired, err := time.Parse(time.RFC3339Nano, permissions.ExpiresAt)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	isValid := now.Before(expired)
+
+	if !isValid {
+		log.Println(fmt.Sprintf("%s token has expired", id))
+
+		diff := now.Sub(expired)
+		if diff.Hours() > 1 {
+			database.NewRef(fmt.Sprintf("characters/%s/sso", id)).Delete(ctx)
+			database.NewRef(fmt.Sprintf("characters/%s/titles", id)).Delete(ctx)
+			database.NewRef(fmt.Sprintf("characters/%s/roles", id)).Delete(ctx)
+		}
+	}
+
+	return isValid
 }
 
 func hasLocationScopes(permissions *Permissions) bool {
