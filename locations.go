@@ -9,10 +9,6 @@ import (
 	esi "github.com/w9jds/go.esi"
 )
 
-var (
-	characters = map[string]Character{}
-)
-
 func start() {
 	go updateCharacters()
 	go queueProcessor()
@@ -30,17 +26,14 @@ func queueProcessor() {
 func processCharacter(job *Job) {
 	time.Sleep(job.Delay)
 
-	err := getCharacter(job.ID)
+	err := checkCharacterChanges(job.ID)
 	if err != nil {
-		log.Println(err)
-
+		log.Println(fmt.Sprintf("Character %s: %s", job.ID, err))
 		jobQueue <- NewJob(job.ID, 15*time.Second)
 		return
 	}
 
-	mutex.Lock()
-	character := characters[job.ID]
-	mutex.Unlock()
+	character, _ := getCharacter(job.ID)
 
 	if !isAuthenticated(job.ID, character.SSO) {
 		jobQueue <- NewJob(job.ID, 60*time.Second)
@@ -111,10 +104,9 @@ func isAuthenticated(id string, permissions *Permissions) bool {
 	isValid := now.Before(expired)
 
 	if !isValid {
-		log.Println(fmt.Sprintf("%s token has expired", id))
-
 		diff := now.Sub(expired)
 		if diff.Hours() > 1 {
+			log.Println(fmt.Sprintf("%s token has expired", id))
 			database.NewRef(fmt.Sprintf("characters/%s/sso", id)).Delete(ctx)
 			database.NewRef(fmt.Sprintf("characters/%s/titles", id)).Delete(ctx)
 			database.NewRef(fmt.Sprintf("characters/%s/roles", id)).Delete(ctx)

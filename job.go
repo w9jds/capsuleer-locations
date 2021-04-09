@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	jobQueue = make(chan *Job)
+	characters = map[string]Character{}
+	jobQueue   = make(chan *Job)
 
 	mutex = &sync.Mutex{}
 )
@@ -21,4 +22,18 @@ func NewJob(id string, delay time.Duration) *Job {
 		ID:    id,
 		Delay: delay,
 	}
+}
+
+func getCharacter(id string) (Character, bool) {
+	mutex.Lock()
+	character, ok := characters[id]
+	mutex.Unlock()
+
+	return character, ok
+}
+
+func setCharacter(id string, value Character) {
+	mutex.Lock()
+	characters[id] = value
+	mutex.Unlock()
 }
