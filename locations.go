@@ -28,7 +28,7 @@ func processCharacter(job *Job) {
 
 	err := checkCharacterChanges(job.ID)
 	if err != nil {
-		log.Println(fmt.Sprintf("Character %s: %s", job.ID, err))
+		log.Printf("Character %s: %s", job.ID, err)
 		jobQueue <- NewJob(job.ID, 15*time.Second)
 		return
 	}
@@ -36,12 +36,12 @@ func processCharacter(job *Job) {
 	character, _ := getCharacter(job.ID)
 
 	if !isAuthenticated(job.ID, character.SSO) {
-		jobQueue <- NewJob(job.ID, 60*time.Second)
+		jobQueue <- NewJob(job.ID, 10*time.Minute)
 		return
 	}
 
 	if !hasLocationScopes(character.SSO) {
-		jobQueue <- NewJob(job.ID, 60*time.Second)
+		jobQueue <- NewJob(job.ID, 10*time.Minute)
 		return
 	}
 
@@ -107,6 +107,7 @@ func isAuthenticated(id string, permissions *Permissions) bool {
 		diff := now.Sub(expired)
 		if diff.Hours() > 1 {
 			log.Println(fmt.Sprintf("%s token has expired", id))
+			database.NewRef(fmt.Sprintf("locations/%s", id)).Delete(ctx)
 			database.NewRef(fmt.Sprintf("characters/%s/sso", id)).Delete(ctx)
 			database.NewRef(fmt.Sprintf("characters/%s/titles", id)).Delete(ctx)
 			database.NewRef(fmt.Sprintf("characters/%s/roles", id)).Delete(ctx)

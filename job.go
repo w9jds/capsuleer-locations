@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -33,6 +35,16 @@ func getCharacter(id string) (Character, bool) {
 }
 
 func setCharacter(id string, value Character) {
+	// TODO Find out why I'm not getting an ID from some characters
+	if value.ID < 1 {
+		id, err := strconv.Atoi(id)
+		if err != nil {
+			log.Println(err)
+		}
+
+		value.ID = uint32(id)
+	}
+
 	mutex.Lock()
 	characters[id] = value
 	mutex.Unlock()

@@ -37,7 +37,7 @@ func updateCharacters() {
 	database.NewRef("characters").GetShallow(ctx, &ids)
 
 	for id := range ids {
-		if _, ok := characters[id]; !ok {
+		if _, ok := getCharacter(id); !ok {
 			jobQueue <- NewJob(id, 0*time.Second)
 		}
 	}
@@ -49,8 +49,8 @@ func updateCharacters() {
 		lastUpdated = getNowMilli()
 
 		for id := range newlyAdded {
-			if _, ok := characters[id]; !ok {
-				log.Println(fmt.Sprintf("new character %s found", id))
+			if _, ok := getCharacter(id); !ok {
+				log.Printf("new character %s found", id)
 				jobQueue <- NewJob(id, 0*time.Second)
 			}
 		}
@@ -62,6 +62,17 @@ func checkCharacterChanges(id string) error {
 	ref := database.NewRef(fmt.Sprintf("characters/%s", id))
 
 	if current, ok := getCharacter(id); ok {
+		if current.SSO != nil {
+			if expired, err := time.Parse(time.RFC3339Nano, current.SSO.ExpiresAt); err == nil {
+				now := time.Now()
+				diff := expired.Sub(now)
+
+				if diff.Minutes() > 3 {
+					return nil
+				}
+			}
+		}
+
 		hasChanged, etag, err := ref.GetIfChanged(ctx, current.ETag, &character)
 		if err != nil {
 			return err
