@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"cloud.google.com/go/logging"
 	firebase "firebase.google.com/go"
 	"firebase.google.com/go/db"
 	esi "github.com/w9jds/go.esi"
@@ -16,6 +17,7 @@ import (
 
 var (
 	ctx        = context.Background()
+	logClient  *logging.Client
 	httpClient *http.Client
 	esiClient  *esi.Client
 	database   *db.Client
@@ -31,7 +33,15 @@ func (transport CustomTransport) RoundTrip(req *http.Request) (*http.Response, e
 }
 
 func main() {
+	var err error
 	opt := option.WithCredentialsFile("./config/new-eden-admin.json")
+	// logClient, err = logging.NewClient(ctx, "new-eden-storage-a5c23")
+	// if err != nil {
+	// 	log.Fatalf("Failed to create logging client: %v", err)
+	// }
+
+	defer logClient.Close()
+
 	config := &firebase.Config{
 		ProjectID:   "new-eden-storage-a5c23",
 		DatabaseURL: "https://new-eden-storage-a5c23.firebaseio.com",
@@ -44,13 +54,13 @@ func main() {
 
 	app, err := firebase.NewApp(ctx, config, opt)
 	if err != nil {
-		log.Println("Error initializing firebase app: ", err)
+		log.Fatalf("Error initializing firebase app: %v", err)
 		return
 	}
 
 	database, err = app.Database(ctx)
 	if err != nil {
-		log.Println("Error fetching firebase client: ", err)
+		log.Fatalf("Error fetching firebase client: %v", err)
 		return
 	}
 

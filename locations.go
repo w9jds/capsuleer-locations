@@ -47,7 +47,7 @@ func processCharacter(job *Job) {
 
 	if ok, err := isCharacterOnline(character); !ok {
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error receiving character online: %v", err)
 		}
 
 		jobQueue <- NewJob(job.ID, 60*time.Second)
@@ -56,21 +56,21 @@ func processCharacter(job *Job) {
 
 	ship, location, err := getCharacterLocation(character)
 	if err != nil {
-		log.Println(err)
+		log.Printf("Error receiving character location/ship: %v", err)
 		jobQueue <- NewJob(job.ID, 15*time.Second)
 		return
 	}
 
 	names, err := esiClient.GetNames([]uint{ship.ShipTypeID, location.SolarSystemID})
 	if err != nil {
-		log.Println(err)
+		log.Printf("Error receiving names: %v", err)
 		jobQueue <- NewJob(job.ID, 15*time.Second)
 		return
 	}
 
 	err = pushLocation(character, ship, location, names)
 	if err != nil {
-		log.Println(err)
+		log.Printf("Error updating characters location: %v", err)
 
 		jobQueue <- NewJob(job.ID, 15*time.Second)
 		return

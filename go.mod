@@ -3,9 +3,10 @@ module locations
 go 1.18
 
 require (
+	cloud.google.com/go/logging v1.4.2
 	firebase.google.com/go v3.13.0+incompatible
 	github.com/w9jds/go.esi v0.0.0-20211025201302-0136ece7d5e8
-	google.golang.org/api v0.80.0
+	google.golang.org/api v0.81.0
 )
 
 require (
@@ -23,6 +24,7 @@ require (
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
+	golang.org/x/sync v0.0.0-20220513210516-0976fa681c29 // indirect
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20220517211312-f3a8303e98df // indirect
