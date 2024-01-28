@@ -8,10 +8,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	esi "github.com/w9jds/go.esi"
+
 	"cloud.google.com/go/logging"
 	firebase "firebase.google.com/go"
 	"firebase.google.com/go/db"
-	esi "github.com/w9jds/go.esi"
 	"google.golang.org/api/option"
 )
 

@@ -8,23 +8,20 @@ import (
 	esi "github.com/w9jds/go.esi"
 )
 
-type Character struct {
-	ID         uint32       `json:"id,omitempty"`
-	Name       string       `json:"name,omitempty"`
-	AccountID  string       `json:"accountId,omitempty"`
-	AllianceID uint32       `json:"allianceId,omitempty"`
-	CorpID     uint32       `json:"corpId,omitempty"`
-	Hash       string       `json:"hash,omitempty"`
-	SSO        *Permissions `json:"sso,omitempty"`
-	MemberFor  uint         `json:"memberFor,omitempty"`
-	ETag       string
+type Ship struct {
+	TypeID uint   `json:"typeId,omitempty"`
+	Name   string `json:"name,omitempty"`
+	ItemID uint   `json:"itemId,omitempty"`
+	Type   string `json:"type,omitempty"`
 }
 
-type Permissions struct {
-	AccessToken  string `json:"accessToken,omitempty"`
-	RefreshToken string `json:"refreshToken,omitempty"`
-	Scope        string `json:"scope,omitempty"`
-	ExpiresAt    string `json:"expiresAt,omitempty"`
+type Location struct {
+	System *System `json:"system,omitempty"`
+}
+
+type System struct {
+	ID   uint   `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 func getNowMilli() int64 {
@@ -34,7 +31,10 @@ func getNowMilli() int64 {
 func updateCharacters() {
 	lastUpdated := getNowMilli()
 	var ids map[string]interface{}
-	database.NewRef("characters").GetShallow(ctx, &ids)
+	var error = database.NewRef("characters").GetShallow(ctx, &ids)
+	if error != nil {
+		log.Fatalf("Error receiving character ids: %v", error)
+	}
 
 	for id := range ids {
 		if _, ok := getCharacter(id); !ok {
@@ -95,27 +95,12 @@ func checkCharacterChanges(id string) error {
 	return nil
 }
 
-type Ship struct {
-	TypeID uint   `json:"typeId,omitempty"`
-	Name   string `json:"name,omitempty"`
-	ItemID uint   `json:"itemId,omitempty"`
-	Type   string `json:"type,omitempty"`
-}
-
-type Location struct {
-	System *System `json:"system,omitempty"`
-}
-
-type System struct {
-	ID   uint   `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-}
-
 func pushLocation(character Character, ship *esi.Ship, location *esi.Location, names map[uint]esi.NameRef) error {
 	update := map[string]interface{}{
-		"id":     character.ID,
-		"name":   character.Name,
-		"corpId": character.CorpID,
+		"accountId": character.AccountID,
+		"id":        character.ID,
+		"name":      character.Name,
+		"corpId":    character.CorpID,
 		"ship": &Ship{
 			TypeID: ship.ShipTypeID,
 			Name:   ship.ShipName,

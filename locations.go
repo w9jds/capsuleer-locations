@@ -1,12 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"strings"
 	"time"
-
-	esi "github.com/w9jds/go.esi"
 )
 
 func start() {
@@ -15,11 +11,8 @@ func start() {
 }
 
 func queueProcessor() {
-	for {
-		select {
-		case job := <-jobQueue:
-			go processCharacter(job)
-		}
+	for job := range jobQueue {
+		go processCharacter(job)
 	}
 }
 
@@ -35,17 +28,17 @@ func processCharacter(job *Job) {
 
 	character, _ := getCharacter(job.ID)
 
-	if !isAuthenticated(job.ID, character.SSO) {
+	if !character.SSO.isAuthenticated(job.ID) {
 		jobQueue <- NewJob(job.ID, 10*time.Minute)
 		return
 	}
 
-	if !hasLocationScopes(character.SSO) {
+	if !character.SSO.hasLocationScopes() {
 		jobQueue <- NewJob(job.ID, 10*time.Minute)
 		return
 	}
 
-	if ok, err := isCharacterOnline(character); !ok {
+	if ok, err := character.isCharacterOnline(); !ok {
 		if err != nil {
 			log.Printf("Error receiving character online: %v", err)
 		}
@@ -54,7 +47,7 @@ func processCharacter(job *Job) {
 		return
 	}
 
-	ship, location, err := getCharacterLocation(character)
+	ship, location, err := character.getCharacterLocation()
 	if err != nil {
 		log.Printf("Error receiving character location/ship: %v", err)
 		jobQueue <- NewJob(job.ID, 15*time.Second)
@@ -63,7 +56,7 @@ func processCharacter(job *Job) {
 
 	names, err := esiClient.GetNames([]uint{ship.ShipTypeID, location.SolarSystemID})
 	if err != nil {
-		log.Printf("Error receiving names: %v", err)
+		log.Printf("Error receiving names for [%v, %v]: %v", ship.ShipTypeID, location.SolarSystemID, err)
 		jobQueue <- NewJob(job.ID, 15*time.Second)
 		return
 	}
@@ -77,74 +70,4 @@ func processCharacter(job *Job) {
 	}
 
 	jobQueue <- NewJob(job.ID, 5*time.Second)
-}
-
-func isCharacterOnline(character Character) (bool, error) {
-	online, err := esiClient.IsCharacterOnline(character.ID, character.SSO.AccessToken)
-	if err != nil || !online.Online {
-		database.NewRef(fmt.Sprintf("locations/%d", character.ID)).Delete(ctx)
-		return false, err
-	}
-
-	return true, nil
-}
-
-func isAuthenticated(id string, permissions *Permissions) bool {
-	if permissions == nil || permissions.AccessToken == "" {
-		return false
-	}
-
-	now := time.Now()
-	expired, err := time.Parse(time.RFC3339Nano, permissions.ExpiresAt)
-	if err != nil {
-		log.Println(err)
-		return false
-	}
-
-	isValid := now.Before(expired)
-
-	if !isValid {
-		diff := now.Sub(expired)
-		if diff.Hours() > 1 {
-			log.Println(fmt.Sprintf("%s token has expired", id))
-			database.NewRef(fmt.Sprintf("locations/%s", id)).Delete(ctx)
-			database.NewRef(fmt.Sprintf("characters/%s/sso", id)).Delete(ctx)
-			database.NewRef(fmt.Sprintf("characters/%s/titles", id)).Delete(ctx)
-			database.NewRef(fmt.Sprintf("characters/%s/roles", id)).Delete(ctx)
-		}
-	}
-
-	return isValid
-}
-
-func hasLocationScopes(permissions *Permissions) bool {
-	if permissions == nil || permissions.Scope == "" {
-		return false
-	}
-
-	if !strings.Contains(permissions.Scope, "read_location") {
-		return false
-	}
-	if !strings.Contains(permissions.Scope, "read_ship_type") {
-		return false
-	}
-	if !strings.Contains(permissions.Scope, "read_online") {
-		return false
-	}
-
-	return true
-}
-
-func getCharacterLocation(character Character) (*esi.Ship, *esi.Location, error) {
-	location, err := esiClient.GetCharacterLocation(character.ID, character.SSO.AccessToken)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ship, err := esiClient.GetCharacterShip(character.ID, character.SSO.AccessToken)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return ship, location, nil
 }
