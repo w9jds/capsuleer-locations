@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	esi "github.com/w9jds/go.esi"
@@ -24,78 +25,75 @@ type System struct {
 	Name string `json:"name,omitempty"`
 }
 
-func getNowMilli() int64 {
-	return (time.Now().UnixNano() / 1000000) - 30000
-}
-
 func updateCharacters() {
-	lastUpdated := getNowMilli()
-	var ids map[string]interface{}
-	var error = database.NewRef("characters").GetShallow(ctx, &ids)
-	if error != nil {
-		log.Fatalf("Error receiving character ids: %v", error)
+	characters, err := rdb.Keys(ctx, "characters:*").Result()
+	if err != nil {
+		log.Fatalf("Error receiving character ids: %v", err)
 	}
 
-	for id := range ids {
-		if _, ok := getCharacter(id); !ok {
-			jobQueue <- NewJob(id, 0*time.Second)
-		}
+	for _, key := range characters {
+		updateCharacter(key)
+		path := strings.Split(key, ":")
+
+		jobQueue <- NewJob(path[1], 0*time.Second)
 	}
 
-	for {
-		time.Sleep(5 * time.Minute)
-		var newlyAdded map[string]Character
-		database.NewRef("characters").OrderByChild("createdAt").StartAt(lastUpdated).Get(ctx, &newlyAdded)
-		lastUpdated = getNowMilli()
+	pubsub := rdb.PSubscribe(ctx, "__keyspace@*__:characters:*")
+	defer pubsub.Close()
 
-		for id := range newlyAdded {
-			if _, ok := getCharacter(id); !ok {
-				log.Printf("new character %s found", id)
-				jobQueue <- NewJob(id, 0*time.Second)
-			}
+	ch := pubsub.Channel()
+	for msg := range ch {
+		switch msg.Payload {
+		case "set":
+			path := strings.Split(msg.Channel, ":")
+			updateCharacter(fmt.Sprintf("%s:%s", path[1], path[2]))
+		case "del":
+			path := strings.Split(msg.Channel, ":")
+			removeCharacter(path[2])
 		}
 	}
 }
 
-func checkCharacterChanges(id string) error {
-	var character Character
-	ref := database.NewRef(fmt.Sprintf("characters/%s", id))
+func getNames(systemId uint, shipId uint) (map[uint]string, error) {
+	missing := []uint{}
+	names := make(map[uint]string)
 
-	if current, ok := getCharacter(id); ok {
-		if current.SSO != nil {
-			if expired, err := time.Parse(time.RFC3339Nano, current.SSO.ExpiresAt); err == nil {
-				now := time.Now()
-				diff := expired.Sub(now)
-
-				if diff.Minutes() > 3 {
-					return nil
-				}
-			}
-		}
-
-		hasChanged, etag, err := ref.GetIfChanged(ctx, current.ETag, &character)
-		if err != nil {
-			return err
-		}
-
-		if hasChanged {
-			character.ETag = etag
-			setCharacter(id, character)
-		}
+	systemName, err := rdb.HGet(ctx, "names:solar_system", fmt.Sprint(systemId)).Result()
+	if err == nil {
+		names[systemId] = systemName
 	} else {
-		etag, err := ref.GetWithETag(ctx, &character)
-		if err != nil {
-			return err
-		}
-
-		character.ETag = etag
-		setCharacter(id, character)
+		missing = append(missing, systemId)
 	}
 
-	return nil
+	shipName, err := rdb.HGet(ctx, "names:inventory_type", fmt.Sprint(systemId)).Result()
+	if err == nil {
+		names[shipId] = shipName
+	} else {
+		missing = append(missing, shipId)
+	}
+
+	if len(missing) > 0 {
+		refs, err := esiClient.GetNames(missing)
+		if err != nil {
+			return nil, err
+		}
+
+		cacheNames(refs)
+		for id, ref := range refs {
+			names[id] = ref.Name
+		}
+	}
+
+	return names, nil
 }
 
-func pushLocation(character Character, ship *esi.Ship, location *esi.Location, names map[uint]esi.NameRef) error {
+func cacheNames(names map[uint]esi.NameRef) {
+	for id, name := range names {
+		rdb.HSet(ctx, fmt.Sprintf("names:%s", name.Category), id, name.Name)
+	}
+}
+
+func pushLocation(character Character, ship *esi.Ship, location *esi.Location, names map[uint]string) error {
 	update := map[string]interface{}{
 		"accountId": character.AccountID,
 		"id":        character.ID,
@@ -105,12 +103,12 @@ func pushLocation(character Character, ship *esi.Ship, location *esi.Location, n
 			TypeID: ship.ShipTypeID,
 			Name:   ship.ShipName,
 			ItemID: ship.ShipItemID,
-			Type:   names[ship.ShipTypeID].Name,
+			Type:   names[ship.ShipTypeID],
 		},
 		"location": &Location{
 			System: &System{
 				ID:   location.SolarSystemID,
-				Name: names[location.SolarSystemID].Name,
+				Name: names[location.SolarSystemID],
 			},
 		},
 	}

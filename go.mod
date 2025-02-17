@@ -7,6 +7,7 @@ toolchain go1.23.4
 require (
 	cloud.google.com/go/logging v1.13.0
 	firebase.google.com/go v3.13.0+incompatible
+	github.com/redis/go-redis/v9 v9.7.0
 	github.com/w9jds/go.esi v0.0.0-20240119201309-afc35831eb59
 	google.golang.org/api v0.216.0
 )
@@ -27,6 +28,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.49.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20241223141626-cff3c89139a3 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.3 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect

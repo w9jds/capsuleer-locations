@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
 )
@@ -19,14 +20,16 @@ func queueProcessor() {
 func processCharacter(job *Job) {
 	time.Sleep(job.Delay)
 
-	err := checkCharacterChanges(job.ID)
-	if err != nil {
-		log.Printf("Character %s: %s", job.ID, err)
-		jobQueue <- NewJob(job.ID, 15*time.Second)
+	character, ok := getCharacter(job.ID)
+
+	if !ok {
+		err := database.NewRef(fmt.Sprintf("locations/%s", job.ID)).Delete(ctx)
+		if err != nil {
+			log.Printf("Error deleting character location: %v", err)
+		}
+
 		return
 	}
-
-	character, _ := getCharacter(job.ID)
 
 	if !character.SSO.isAuthenticated(job.ID) {
 		jobQueue <- NewJob(job.ID, 10*time.Minute)
@@ -54,7 +57,7 @@ func processCharacter(job *Job) {
 		return
 	}
 
-	names, err := esiClient.GetNames([]uint{ship.ShipTypeID, location.SolarSystemID})
+	names, err := getNames(location.SolarSystemID, ship.ShipTypeID)
 	if err != nil {
 		log.Printf("Error receiving names for [%v, %v]: %v", ship.ShipTypeID, location.SolarSystemID, err)
 		jobQueue <- NewJob(job.ID, 15*time.Second)

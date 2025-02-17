@@ -1,8 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -34,18 +35,27 @@ func getCharacter(id string) (Character, bool) {
 	return character, ok
 }
 
-func setCharacter(id string, value Character) {
-	// TODO Find out why I'm not getting an ID from some characters
-	if value.ID < 1 {
-		id, err := strconv.Atoi(id)
-		if err != nil {
-			log.Println(err)
-		}
+func updateCharacter(key string) {
+	item, err := rdb.Get(ctx, key).Result()
+	if err != nil {
+		log.Printf("Error receiving character: %v", err)
+		return
+	}
 
-		value.ID = uint32(id)
+	character := Character{}
+	err = json.Unmarshal([]byte(item), &character)
+	if err != nil {
+		log.Printf("Error unmarshalling character: %v", err)
+		return
 	}
 
 	mutex.Lock()
-	characters[id] = value
+	characters[fmt.Sprintf("%d", character.ID)] = character
+	mutex.Unlock()
+}
+
+func removeCharacter(id string) {
+	mutex.Lock()
+	delete(characters, id)
 	mutex.Unlock()
 }
