@@ -46,7 +46,14 @@ func updateCharacters() {
 		switch msg.Payload {
 		case "set":
 			path := strings.Split(msg.Channel, ":")
+			_, ok := getCharacter(path[2])
+
 			updateCharacter(fmt.Sprintf("%s:%s", path[1], path[2]))
+
+			if !ok {
+				// new character found, add to queue
+				jobQueue <- NewJob(path[2], 0*time.Second)
+			}
 		case "del":
 			path := strings.Split(msg.Channel, ":")
 			removeCharacter(path[2])
@@ -89,7 +96,7 @@ func getNames(systemId uint, shipId uint) (map[uint]string, error) {
 
 func cacheNames(names map[uint]esi.NameRef) {
 	for id, name := range names {
-		rdb.HSet(ctx, fmt.Sprintf("names:%s", name.Category), id, name.Name)
+		rdb.HSet(ctx, "names", id, name.Name)
 	}
 }
 
