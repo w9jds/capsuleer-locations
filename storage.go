@@ -72,7 +72,7 @@ func getNames(systemId uint, shipId uint) (map[uint]string, error) {
 		missing = append(missing, systemId)
 	}
 
-	shipName, err := rdb.HGet(ctx, "names:inventory_type", fmt.Sprint(systemId)).Result()
+	shipName, err := rdb.HGet(ctx, "names:inventory_type", fmt.Sprint(shipId)).Result()
 	if err == nil {
 		names[shipId] = shipName
 	} else {
